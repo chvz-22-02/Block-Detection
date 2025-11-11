@@ -1,6 +1,8 @@
 # Ignorar carpetas específicas
 data/raw/data_set_256/*
+!data/raw/data_set_256/
 data/raw/dataset_vertices_256/*
+!data/raw/dataset_vertices_256/
 !data/
 
 # Ignorar entornos virtuales
