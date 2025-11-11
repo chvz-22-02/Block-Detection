@@ -1,0 +1,6 @@
+# Ignorar carpetas específicas
+data/raw/data_set_256/*
+data/raw/dataset_vertices_256/*
+
+# Ignorar entornos virtuales
+venv/
