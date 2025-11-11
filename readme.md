@@ -10,3 +10,5 @@
 - pandas
 - matplotlib
 - transformers
+- ultralytics
+- shutil

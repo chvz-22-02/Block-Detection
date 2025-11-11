@@ -1,9 +1,9 @@
-train: ../train/images
-val: ../valid/images
-test: ../test/images
+train: ../../data/interim_yolo/train/images
+val: ../../data/interim_yolo/valid/images
+#test: ../../data/interim_yolo/test/images
 
-nc: 3
-names: ['manzanas', 'parcelas', 'parques']
+nc: 1
+names: ['manzanas'] #['manzanas', 'parcelas', 'parques']
 
 roboflow:
   workspace: nella-hyakz

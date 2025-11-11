@@ -5,6 +5,7 @@
 import os
 import json
 import pandas as pd
+import shutil
 
 def tabulate_jsons_from_folder(folder_path):
     '''
@@ -196,3 +197,35 @@ def convertir_txt_vertices_a_bbox(input_path, output_path, x_path): # pendiente 
                 f.write(line + '\n')
     except Exception as e:
         print(f"Error procesando {input_path}: {e}")
+
+def copiar_archivos_seleccionados(origen, destino, lista_nombres):
+    '''
+    Función para copiar las observaciones y los labels a las carpetas de train 
+    y test para el reentrenamiento de Yolo.
+
+    args:
+    - origen: carpeta de origen de los archivos
+    - destino: carpeta en la que se van a copiar los archivos
+    - lista_nombres: lista de nombres de los archivos que se van a copiar
+
+    Librerías requeridas:
+    - shutil 
+    - os
+    '''
+    # Eliminar todos los archivos en la carpeta de destino
+    if os.path.exists(destino):
+        for archivo in os.listdir(destino):
+            ruta_archivo = os.path.join(destino, archivo)
+            if os.path.isfile(ruta_archivo):
+                os.remove(ruta_archivo)
+    else:
+        os.makedirs(destino)
+
+    # Copiar archivos seleccionados desde origen a destino
+    for nombre in lista_nombres:
+        ruta_origen = os.path.join(origen, nombre)
+        ruta_destino = os.path.join(destino, nombre)
+        #print(ruta_origen,1)
+        if os.path.isfile(ruta_origen):
+            #print(nombre,2)
+            shutil.copy2(ruta_origen, ruta_destino)
