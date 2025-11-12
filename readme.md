@@ -12,3 +12,7 @@
 - transformers
 - ultralytics
 - shutil
+- transformers
+- transformers[torch]
+- evaluate
+- albumentations
