@@ -3,10 +3,7 @@ data/raw/data_set_256/*
 !data/raw/data_set_256/
 data/raw/dataset_vertices_256/*
 !data/raw/dataset_vertices_256/
-data/interim_yolo/train/images/*
-data/interim_yolo/train/labels/*
-data/interim_yolo/valid/images/*
-data/interim_yolo/valid/labels/*
+data/interim_yolo/*
 !data/
 
 # Ignorar entornos virtuales
