@@ -16,3 +16,7 @@
 - transformers[torch]
 - evaluate
 - albumentations
+
+## Para el modelo de Gustavo
+- onnxruntime
+- opencv-python

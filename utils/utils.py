@@ -113,7 +113,7 @@ def generar_lineas_por_manzana(data):
     # Generar líneas de salida
     lineas = []
     for idm, coords in manzanas.items():
-        linea = '0' + " " + " ".join(f"{(x-x_min)/x_den} {(y-y_min)/y_den}" for x, y in coords)
+        linea = '0' + " " + " ".join(f"{(x-x_min)/x_den} {1 - (y-y_min)/y_den}" for x, y in coords)
         lineas.append(linea)
 
     return lineas
