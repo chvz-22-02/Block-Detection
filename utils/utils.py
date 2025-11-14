@@ -122,7 +122,9 @@ def procesar_jsons_en_carpeta(carpeta_entrada, carpeta_salida):
     '''
     Lee de la carpeta de metadatos los jsons con la información de los vértices,
     aplica la función generar_lineas_por_manzana para procesar su información y 
-    guarda el resultado compatible con Yolo en txt en otra carpeta.
+    guarda el resultado compatible con Yolo en txt en otra carpeta. Borra la 
+    carpeta de destino para asegurarse de que en la carpeta resultante solo hayan 
+    los archivos generados por la última ejecución de la función.
 
     args:
     - carpeta_entrada: ruta en la que se encuentran los jsons
@@ -131,9 +133,16 @@ def procesar_jsons_en_carpeta(carpeta_entrada, carpeta_salida):
     Librerías requeridas:
     - os
     - json
+    - shutil
     '''
+    
+    # Si la carpeta de salida existe, eliminarla
+    if os.path.exists(carpeta_salida):
+            shutil.rmtree(carpeta_salida)
+
+
     # Crear la carpeta de salida si no existe
-    os.makedirs(carpeta_salida, exist_ok=True)
+    os.makedirs(carpeta_salida)
 
     for nombre_archivo in os.listdir(carpeta_entrada):
         if nombre_archivo.endswith(".json"):
