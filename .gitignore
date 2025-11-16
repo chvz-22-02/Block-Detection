@@ -1,9 +1,7 @@
 # Ignorar carpetas específicas
-data/raw/data_set_256/*
-!data/raw/data_set_256/
-data/raw/dataset_vertices_256/*
-!data/raw/dataset_vertices_256/
+data/raw/*
 data/interim_yolo/*
+data/processed_yolo/*
 !data/
 
 # Ignorar entornos virtuales

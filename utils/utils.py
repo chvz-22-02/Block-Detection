@@ -73,6 +73,7 @@ def load_image_mask_pairs(image_dir, mask_dir, list_id):
             mask = Image.open(os.path.join(mask_dir, mask_file)).convert("L")
             array = np.array(mask)
             array[array == 255] = 1
+            array = array.astype(np.uint8)
 
             data.append({
                 "pixel_values": img,#np.array(img),

@@ -1,6 +1,6 @@
-train: ../../data/interim_yolo/train/images
-val: ../../data/interim_yolo/valid/images
-#test: ../../data/interim_yolo/test/images
+train: D:/Github/Block-Detection/data/interim_yolo/train/images
+val: D:/Github/Block-Detection/data/interim_yolo/valid/images #../../data/interim_yolo/valid/images
+test: D:/Github/Block-Detection/data/interim_yolo/test/images
 
 nc: 1
 names: ['manzanas'] #['manzanas', 'parcelas', 'parques']
