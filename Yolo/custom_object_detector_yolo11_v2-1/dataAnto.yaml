@@ -1,0 +1,13 @@
+train: ../train/images
+val: ../valid/images
+test: ../test/images
+
+nc: 1
+names: ['manzanas']
+
+roboflow:
+  workspace: proyectointegrador-r4ykk
+  project: primeracarpetagus-tpm33
+  version: 1
+  license: CC BY 4.0
+  url: https://universe.roboflow.com/proyectointegrador-r4ykk/primeracarpetagus-tpm33/dataset/1

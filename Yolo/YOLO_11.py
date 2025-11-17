@@ -24,7 +24,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--min-pol", type=int, default=2, help="Mínimo de polígonos (int).")
     parser.add_argument("--size", type=int, default=256, help="Tamaño base (int).")
     parser.add_argument("--prepath", type=str, default="../data/raw/data_set_", help="Ruta base previa (str).")
-    parser.add_argument("--data-yaml", type=str, default="custom_object_detector_yolo11_v2-1/data.yaml",
+    parser.add_argument("--nombre-yaml", type=str, default="custom_object_detector_yolo11_v2-1/data.yaml",
                         help="Ruta al data.yaml")
     parser.add_argument("--conf-thres", type=float, default=0.001, help="Umbral de confianza.")
     parser.add_argument("--max-det", type=int, default=300, help="Máximo de detecciones por imagen.")
@@ -32,6 +32,7 @@ def parse_args() -> argparse.Namespace:
                         help="Lista opcional de índices de clase a filtrar, e.g. --classes 0 2 5")
     parser.add_argument("--iou", type=float, default=0.5, help="Umbral IoU para emparejamiento.")
     parser.add_argument("--version", type=str, default="12", help="Versión (string suelto).")
+    parser.add_argument("--gen-data", type=bool, default=True, help="Si es que se tiene que generar el dataset o buscarlo directamente al yaml (bool).")
 
     return parser.parse_args()
 
@@ -43,6 +44,8 @@ def main():
     size = args.size
     n_modelo = args.version
     prepath = args.prepath
+    gen_data = args.gen_data
+    nombre_yaml = args.nombre_yaml
 
     model_path = f"runs/detect/train{n_modelo}/weights/best.pt"
     data_yaml  = args.data_yaml
@@ -66,70 +69,74 @@ def main():
 
     if mode=='train':
         # Definición del dataset y separación en train, test y val
-        jsons = tabulate_jsons_from_folder(f'{path}metadata_y_{size}/')
-        l1 = jsons[jsons['num_polygons_in_window']>1]
-        l0 = jsons[jsons['num_polygons_in_window']==0].sample(n=int(np.round(len(l1)/5)), random_state=42)
-        l = pd.concat([l1,l0])
-        df_dict = l['bounds'].apply(pd.Series)
-        l = pd.concat([l.drop(columns=['bounds']), df_dict], axis=1)
+        if gen_data:
+            jsons = tabulate_jsons_from_folder(f'{path}metadata_y_{size}/')
+            l1 = jsons[jsons['num_polygons_in_window']>=min_pol]
+            try:
+                l0 = jsons[jsons['num_polygons_in_window']==0].sample(n=int(np.round(len(l1)/5)), random_state=42)
+            except:
+                l0 = jsons[jsons['num_polygons_in_window']==0]
+            l = pd.concat([l1,l0])
+            df_dict = l['bounds'].apply(pd.Series)
+            l = pd.concat([l.drop(columns=['bounds']), df_dict], axis=1)
 
-        l_val = l[((l['minx']>619641.7) & (l['miny']>9259735.0) & # V1 P1
-                (l['minx']<621212.1) & (l['miny']<9261887.8)   # V2 P1
-                ) |
-                ((l['minx']>627583.9) & (l['miny']>9253353.3) & # V1 P2
-                (l['minx']<629255) & (l['miny']<9255705)   # V2 P2
-                ) |
-                ((l['minx']>628000.9) & (l['miny']>9249430.7) & # V1 P3
-                (l['minx']<620328.1) & (l['miny']<9239286.6)   # V2 P3
-                ) |
-                ((l['minx']>625001.3) & (l['miny']>9236962.5) & # V1 P4
-                (l['minx']<625015.2) & (l['miny']<9236364.8)   # V2 P4
-                ) |
-                ((l['minx']>619685.9) & (l['miny']>9238780.6) & # V1 P5
-                (l['minx']<620344.8) & (l['miny']<9239286.6)   # V2 P5
-                )]['id']
-
-        l_test = l[((l['minx']>618276.5) & (l['miny']>9256975.6) & # V1 P1
-                    (l['minx']<623241.5) & (l['miny']<9252569.3)   # V2 P1
+            l_val = l[((l['minx']>619641.7) & (l['miny']>9259735.0) & # V1 P1
+                    (l['minx']<621212.1) & (l['miny']<9261887.8)   # V2 P1
                     ) |
-                    ((l['minx']>626004.8) & (l['miny']>9250947.2) & # V1 P2
-                    (l['minx']<627251.6) & (l['miny']<9251964.7)   # V2 P2
+                    ((l['minx']>627583.9) & (l['miny']>9253353.3) & # V1 P2
+                    (l['minx']<629255) & (l['miny']<9255705)   # V2 P2
                     ) |
-                    ((l['minx']>633129.9) & (l['miny']>9251417.0) & # V1 P3
-                    (l['minx']<634072.3) & (l['miny']<9251993.9)   # V2 P3
+                    ((l['minx']>628000.9) & (l['miny']>9249430.7) & # V1 P3
+                    (l['minx']<620328.1) & (l['miny']<9239286.6)   # V2 P3
                     ) |
-                    ((l['minx']>626975.0) & (l['miny']>9246374.1) & # V1 P4
-                    (l['minx']<628832.1) & (l['miny']<9248253.4)   # V2 P4
+                    ((l['minx']>625001.3) & (l['miny']>9236962.5) & # V1 P4
+                    (l['minx']<625015.2) & (l['miny']<9236364.8)   # V2 P4
                     ) |
-                    ((l['minx']>617904.0) & (l['miny']>9243808.2) & # V1 P5
-                    (l['minx']<619191.1) & (l['miny']<9245320.5)   # V2 P5
-                    ) |
-                    ((l['minx']>619124.4) & (l['miny']>9239440.9) & # V1 P6
-                    (l['minx']<619783.2) & (l['miny']<9240155.3)   # V2 P6
-                    ) |
-                    ((l['minx']>630294.3) & (l['miny']>9240511.1) & # V1 P7
-                    (l['minx']<632724) & (l['miny']<9242035)   # V2 P7
-                    ) |
-                    ((l['minx']>632418.2) & (l['miny']>9237497.6) & # V1 P8
-                    (l['minx']<633908.3) & (l['miny']<9238604.1)   # V2 P8
+                    ((l['minx']>619685.9) & (l['miny']>9238780.6) & # V1 P5
+                    (l['minx']<620344.8) & (l['miny']<9239286.6)   # V2 P5
                     )]['id']
 
-        l_train = l['id'].drop(l_test.index).drop(l_val.index)
+            l_test = l[((l['minx']>618276.5) & (l['miny']>9256975.6) & # V1 P1
+                        (l['minx']<623241.5) & (l['miny']<9252569.3)   # V2 P1
+                        ) |
+                        ((l['minx']>626004.8) & (l['miny']>9250947.2) & # V1 P2
+                        (l['minx']<627251.6) & (l['miny']<9251964.7)   # V2 P2
+                        ) |
+                        ((l['minx']>633129.9) & (l['miny']>9251417.0) & # V1 P3
+                        (l['minx']<634072.3) & (l['miny']<9251993.9)   # V2 P3
+                        ) |
+                        ((l['minx']>626975.0) & (l['miny']>9246374.1) & # V1 P4
+                        (l['minx']<628832.1) & (l['miny']<9248253.4)   # V2 P4
+                        ) |
+                        ((l['minx']>617904.0) & (l['miny']>9243808.2) & # V1 P5
+                        (l['minx']<619191.1) & (l['miny']<9245320.5)   # V2 P5
+                        ) |
+                        ((l['minx']>619124.4) & (l['miny']>9239440.9) & # V1 P6
+                        (l['minx']<619783.2) & (l['miny']<9240155.3)   # V2 P6
+                        ) |
+                        ((l['minx']>630294.3) & (l['miny']>9240511.1) & # V1 P7
+                        (l['minx']<632724) & (l['miny']<9242035)   # V2 P7
+                        ) |
+                        ((l['minx']>632418.2) & (l['miny']>9237497.6) & # V1 P8
+                        (l['minx']<633908.3) & (l['miny']<9238604.1)   # V2 P8
+                        )]['id']
 
-        # Motado de directorio (raw a interim)
-        procesar_jsons_en_carpeta(f'{path}metadata_y_{size}/','../data/interim_yolo/dataset_labels/')
-        copiar_archivos_seleccionados(f'{path}dataset_x_{size}/', '../data/interim_yolo/train/images/', [str(x)+'.png' for x in l_train])
-        copiar_archivos_seleccionados(f'{path}dataset_x_{size}/', '../data/interim_yolo/valid/images/', [str(x)+'.png' for x in l_test])
-        copiar_archivos_seleccionados(f'{path}dataset_x_{size}/', '../data/interim_yolo/test/images/', [str(x)+'.png' for x in l_val])
-        copiar_archivos_seleccionados('../data/interim_yolo/dataset_labels/', '../data/interim_yolo/train/labels/', [str(x)+'.txt' for x in l_train])
-        copiar_archivos_seleccionados('../data/interim_yolo/dataset_labels/', '../data/interim_yolo/valid/labels/', [str(x)+'.txt' for x in l_test])
-        copiar_archivos_seleccionados('../data/interim_yolo/dataset_labels/', '../data/interim_yolo/test/labels/', [str(x)+'.txt' for x in l_val])
+            l_train = l['id'].drop(l_test.index).drop(l_val.index)
+
+            # Motado de directorio (raw a interim)
+            procesar_jsons_en_carpeta(f'{path}metadata_y_{size}/','../data/interim_yolo/dataset_labels/')
+            copiar_archivos_seleccionados(f'{path}dataset_x_{size}/', '../data/interim_yolo/train/images/', [str(x)+'.png' for x in l_train])
+            copiar_archivos_seleccionados(f'{path}dataset_x_{size}/', '../data/interim_yolo/valid/images/', [str(x)+'.png' for x in l_test])
+            copiar_archivos_seleccionados(f'{path}dataset_x_{size}/', '../data/interim_yolo/test/images/', [str(x)+'.png' for x in l_val])
+            copiar_archivos_seleccionados('../data/interim_yolo/dataset_labels/', '../data/interim_yolo/train/labels/', [str(x)+'.txt' for x in l_train])
+            copiar_archivos_seleccionados('../data/interim_yolo/dataset_labels/', '../data/interim_yolo/valid/labels/', [str(x)+'.txt' for x in l_test])
+            copiar_archivos_seleccionados('../data/interim_yolo/dataset_labels/', '../data/interim_yolo/test/labels/', [str(x)+'.txt' for x in l_val])
 
         # Carga del modelo base
         model = YOLO("yolo11s.pt")
 
         # Fine tunning
-        data_path = "custom_object_detector_yolo11_v2-1/data.yaml"
+        data_path = f"custom_object_detector_yolo11_v2-1/{nombre_yaml}"
         results= model.train (data=data_path,
         epochs=epochs,
         imgsz=size, 
