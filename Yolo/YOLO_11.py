@@ -20,6 +20,7 @@ def parse_args() -> argparse.Namespace:
     # Variables base
     parser.add_argument("--mode", type=str, default="pred", choices=["train", "val", "pred"],
                         help="Modo de ejecución (train/val/test/predict).")
+    parser.add_argument("--epochs", type=int, default=200, help="Número de épocas de entrenamiento máximas (int).")
     parser.add_argument("--min-pol", type=int, default=2, help="Mínimo de polígonos (int).")
     parser.add_argument("--size", type=int, default=256, help="Tamaño base (int).")
     parser.add_argument("--prepath", type=str, default="../data/raw/data_set_", help="Ruta base previa (str).")
@@ -37,6 +38,7 @@ def parse_args() -> argparse.Namespace:
 
 def main():
     args = parse_args()
+    epochs = args.epochs
     min_pol = args.min_pol
     size = args.size
     n_modelo = args.version
@@ -88,9 +90,11 @@ def main():
         # Fine tunning
         data_path = "custom_object_detector_yolo11_v2-1/data.yaml"
         results= model.train (data=data_path,
-        epochs=15,
+        epochs=epochs,
         imgsz=size, 
-        augment=False)
+        augment=False,
+        patience=30,    
+        early_stop=True)
 
 
     elif mode=='val':
