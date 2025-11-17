@@ -1,5 +1,6 @@
 # Ignorar carpetas específicas
 data/raw/*
+data/external/
 data/interim_yolo/*
 data/processed_yolo/*
 !data/

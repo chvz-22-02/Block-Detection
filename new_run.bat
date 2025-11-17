@@ -19,11 +19,11 @@ cd Yolo
 
 call python YOLO_11.py --mode "train" --prepath "../data/raw/data_set_all_" --size 256 --epochs 200
 call python YOLO_11.py --mode "val" --prepath "../data/raw/data_set_all_" --size 256 --version 1
-call python YOLO_11.py --mode "train" --prepath "../data/raw/data_set_all_" --size 512 --epochs 200
+call python YOLO_11.py --mode "train" --prepath "../data/raw/data_set_all_" --size 512 --epochs 200 --gen-data False
 call python YOLO_11.py --mode "val" --prepath "../data/raw/data_set_all_" --size 512 --version 2
-call python YOLO_11.py --mode "train" --prepath "../data/raw/data_set_all_overlap_" --size 256 --epochs 200
+call python YOLO_11.py --mode "train" --prepath "../data/raw/data_set_all_overlap_" --size 256 --epochs 200 --gen-data False
 call python YOLO_11.py --mode "val" --prepath "../data/raw/data_set_all_overlap_" --size 256 --version 3
-call python YOLO_11.py --mode "train" --prepath "../data/raw/data_set_all_overlap_" --size 512 --epochs 200
+call python YOLO_11.py --mode "train" --prepath "../data/raw/data_set_all_overlap_" --size 512 --epochs 200 --gen-data False
 call python YOLO_11.py --mode "val" --prepath "../data/raw/data_set_all_overlap_" --size 512 --version 4
 
 
