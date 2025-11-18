@@ -24,7 +24,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--min-pol", type=int, default=2, help="Mínimo de polígonos (int).")
     parser.add_argument("--size", type=int, default=256, help="Tamaño base (int).")
     parser.add_argument("--prepath", type=str, default="../data/raw/data_set_", help="Ruta base previa (str).")
-    parser.add_argument("--nombre-yaml", type=str, default="custom_object_detector_yolo11_v2-1/data.yaml",
+    parser.add_argument("--nombre-yaml", type=str, default="data.yaml",
                         help="Ruta al data.yaml")
     parser.add_argument("--conf-thres", type=float, default=0.001, help="Umbral de confianza.")
     parser.add_argument("--max-det", type=int, default=300, help="Máximo de detecciones por imagen.")
@@ -32,7 +32,7 @@ def parse_args() -> argparse.Namespace:
                         help="Lista opcional de índices de clase a filtrar, e.g. --classes 0 2 5")
     parser.add_argument("--iou", type=float, default=0.5, help="Umbral IoU para emparejamiento.")
     parser.add_argument("--version", type=str, default="12", help="Versión (string suelto).")
-    parser.add_argument("--gen-data", type=bool, default=True, help="Si es que se tiene que generar el dataset o buscarlo directamente al yaml (bool).")
+    parser.add_argument("--gen-data", type=str, default="si", help="Si es que se tiene que generar el dataset o buscarlo directamente al yaml (bool).")
 
     return parser.parse_args()
 
@@ -48,7 +48,7 @@ def main():
     nombre_yaml = args.nombre_yaml
 
     model_path = f"runs/detect/train{n_modelo}/weights/best.pt"
-    data_yaml  = args.data_yaml
+    data_yaml  = f'{nombre_yaml}'
     conf_thres = args.conf_thres
     max_det    = args.max_det
     classes    = args.classes
@@ -69,7 +69,7 @@ def main():
 
     if mode=='train':
         # Definición del dataset y separación en train, test y val
-        if gen_data:
+        if gen_data=='si':
             jsons = tabulate_jsons_from_folder(f'{path}metadata_y_{size}/')
             l1 = jsons[jsons['num_polygons_in_window']>=min_pol]
             try:
@@ -125,6 +125,7 @@ def main():
 
             # Motado de directorio (raw a interim)
             procesar_jsons_en_carpeta(f'{path}metadata_y_{size}/','../data/interim_yolo/dataset_labels/')
+
             copiar_archivos_seleccionados(f'{path}dataset_x_{size}/', '../data/interim_yolo/train/images/', [str(x)+'.png' for x in l_train])
             copiar_archivos_seleccionados(f'{path}dataset_x_{size}/', '../data/interim_yolo/valid/images/', [str(x)+'.png' for x in l_test])
             copiar_archivos_seleccionados(f'{path}dataset_x_{size}/', '../data/interim_yolo/test/images/', [str(x)+'.png' for x in l_val])
@@ -140,9 +141,14 @@ def main():
         results= model.train (data=data_path,
         epochs=epochs,
         imgsz=size, 
-        augment=False,
-        patience=30,    
-        early_stop=True)
+        augment=True,
+        patience=30)
+        print('''
+              -----------------------------------------------------------------------------------------------------
+              -----------------------------------------------------------------------------------------------------
+              ----------------------------------TERMINO EL TRAIN --------------------------------------------------
+              -----------------------------------------------------------------------------------------------------
+              -----------------------------------------------------------------------------------------------------''')
 
 
     elif mode=='val':
@@ -243,8 +249,9 @@ def main():
             gt_dict      = {"bboxes": t_gtb, "cls": t_gtc}
             det_dict_conf = {"bboxes": t_det_xyxy, "conf": t_det_conf, "cls": t_det_cls}
             cm.process_batch(det_dict_conf, gt_dict, conf=conf, iou_thres=iou)
-
-        with open(data_yaml, "r", encoding="utf-8") as f:
+        
+        data_path = f"custom_object_detector_yolo11_v2-1/{nombre_yaml}"
+        with open(data_path, "r", encoding="utf-8") as f:
             data = yaml.safe_load(f)
 
         val_images_dir = data.get("test")
@@ -275,36 +282,29 @@ def main():
             oh, ow = getattr(res, "orig_shape", (None, None))
             det_xyxy, det_conf, det_cls = extract_pred_xyxy_conf_cls(res)
             pred_box_count += det_xyxy.shape[0]
-            label_path = img_path.replace("images", "labels").replace(".png", ".txt")
+            label_path = img_path.replace("images", "labels").replace(".png", ".txt").replace(".jpg", ".txt").replace(".jpge", ".txt")
             gt_xyxy, gt_cls = load_gt_xyxy_and_cls(label_path, img_w=ow, img_h=oh)
             gt_box_count += gt_xyxy.shape[0]
             update_cm(cm,
                     det_xyxy=det_xyxy, det_conf=det_conf, det_cls=det_cls,
                     gt_xyxy=gt_xyxy,   gt_cls=gt_cls,
                     iou=iou, conf=conf_thres)
-            if det_xyxy.size and gt_xyxy.size:
-                matches = match_dets_to_gt_greedy(det_xyxy, det_cls, gt_xyxy, gt_cls, iou_thres=iou)
-                for di, gi, miou in matches:
-                    sum_iou_tp += miou
-                    count_tp   += 1
-                    c = int(det_cls[di])
-                    sum_iou_tp_per_cls[c] += miou
-                    count_tp_per_cls[c]   += 1
 
-        mean_iou_global = (sum_iou_tp / count_tp) if count_tp > 0 else float('nan')
-        mean_iou_por_clase = np.array([
-            (sum_iou_tp_per_cls[c] / count_tp_per_cls[c]) if count_tp_per_cls[c] > 0 else np.nan
-            for c in range(nc)
-        ], dtype=np.float64)
         TP = cm.matrix[0,0]
         FN = cm.matrix[0,1]
         FP = cm.matrix[1,0]
-        texto = f'Recall: {TP / (TP + FN)}, Precision: {TP / (TP + FN)}, IoU: {mean_iou_global}'
+        texto = f'Recall: {TP / (TP + FN)}, Precision: {TP / (TP + FP)}, IoU: {mean_iou_global}'
         ruta_archivo = f'../data/processed_yolo/stats/{n_modelo}.txt'
         os.makedirs(os.path.dirname(ruta_archivo), exist_ok=True)
         with open(ruta_archivo, "w", encoding="utf-8") as f:
             f.write(texto)
-
+        print('''
+              -----------------------------------------------------------------------------------------------------
+              -----------------------------------------------------------------------------------------------------
+              ----------------------------------TERMINO EL VAL-- --------------------------------------------------
+              -----------------------------------------------------------------------------------------------------
+              -----------------------------------------------------------------------------------------------------''')
+        
     elif mode=='pred':
         # Carga del modelo entrenado
         custom_model = YOLO(f"runs/detect/train{version}/weights/best.pt")
@@ -315,6 +315,11 @@ def main():
             name=f"pred-m-{version}",
             exist_ok=True
         )
-
+        print('''
+              -----------------------------------------------------------------------------------------------------
+              -----------------------------------------------------------------------------------------------------
+              ----------------------------------TERMINO EL PRED ---------------------------------------------------
+              -----------------------------------------------------------------------------------------------------
+              -----------------------------------------------------------------------------------------------------''')
 if __name__ == "__main__":
     main()

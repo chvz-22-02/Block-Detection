@@ -1,13 +1,14 @@
 :: Orden de ejecuciones
 
 @echo on
-call venv\Scripts\activate
+call ..\pi-env\Scripts\activate
 
-cd ..
 cd Yolo
 
-call python YOLO_11.py --mode "train" --prepath "../data/raw/data_set_all_" --size 256 --epochs 200 --nombre-yaml "dataAnto.yaml" --min-pol 1
+:: ENTRENAR
+::python YOLO_11.py --mode "train" --prepath "../data/raw/data_set_all_" --size 256 --epochs 200 --nombre-yaml "dataAnto.yaml" --min-pol 1 --gen-data "no"
 
-call python YOLO_11.py --mode "val" --prepath "../data/raw/data_set_all_" --size 256 --version 1
+:: VALIDAR (AUTOMÁTICO - selecciona el último modelo)
+python YOLO_11.py --mode "val" --prepath "../data/raw/data_set_all_" --size 256 --nombre-yaml "dataAnto.yaml" --version 2
 
 pause

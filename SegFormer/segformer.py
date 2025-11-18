@@ -24,8 +24,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--name", type=str, default='segformer-200-512', help="Nombre del modelo (str).")
     parser.add_argument("--mode", type=str, default="test", choices=["train", "val", "pred"],
                         help="Modo de ejecución (train/val/test/predict).")
-    parser.add_argument("--epochs", type=int, default=200, help="Número de épocas de entrenamiento máximas (int).")
+    parser.add_argument("--epochs", type=int, default=5, help="Número de épocas de entrenamiento máximas (int).")
     parser.add_argument("--min-pol", type=int, default=1, help="Mínimo de polígonos (int).")
+    parser.add_argument("--steps", type=int, default=400, help="Mínimo de polígonos (int).")
     parser.add_argument("--size", type=int, default=512, help="Tamaño base (int).")
     parser.add_argument("--prepath", type=str, default="../data/raw/data_set_all_", help="Ruta base previa (str).")
     parser.add_argument("--metric", type=str, default="mean_iou", help="En construcción de métricas aceptadas para el train (str).")
@@ -43,7 +44,7 @@ def parse_args() -> argparse.Namespace:
 
 def main():
     args = parse_args()
-
+    eval_steps = args.steps
     num_train_epochs = args.epochs
     mode = args.mode
     size = args.size
@@ -51,6 +52,7 @@ def main():
     prepath = args.prepath
     min_pol = args.min_pol
     metric_for_best_model = args.metric
+    print(metric_for_best_model)
     greater_is_better = True
 
     path = f'{prepath}{size}/'
@@ -58,7 +60,8 @@ def main():
 
 
     metric = evaluate.load("mean_iou")
-    def build_compute_metrics(id2label, image_processor, ignore_index=100, compute_precision=True):
+
+    def build_compute_metrics(id2label, image_processor, ignore_index=0, compute_precision=True):
         """
         compute_metrics para HF Trainer que devuelve SIEMPRE:
         - mean_iou (mIoU global)
@@ -134,15 +137,57 @@ def main():
                 return metrics
         return compute_metrics
 
-    jsons = tabulate_jsons_from_folder(f'{path}metadata_y_{size}/')
-    l1 = jsons[jsons['num_polygons_in_window']>=min_pol]['id']
-    l0 = jsons[jsons['num_polygons_in_window']==0]['id'].sample(n=int(np.round(len(l1)/5)), random_state=42)
-    l = pd.concat([l1,l0])
-    l_train_test = l.sample(frac=0.9, random_state=42)
-    l_val = l.drop(l_train_test.index)
-    l_train = l_train_test.sample(frac=0.8, random_state=42)
-    l_test = l_train_test.drop(l_train.index)
 
+    jsons = tabulate_jsons_from_folder(f'{path}metadata_y_{size}/')
+    l1 = jsons[jsons['num_polygons_in_window']>=min_pol]
+    try:
+        l0 = jsons[jsons['num_polygons_in_window']==0].sample(n=int(np.round(len(l1)/5)), random_state=42)
+    except:
+        l0 = jsons[jsons['num_polygons_in_window']==0]
+    l = pd.concat([l1,l0])
+    df_dict = l['bounds'].apply(pd.Series)
+    l = pd.concat([l.drop(columns=['bounds']), df_dict], axis=1)
+    l_val = l[((l['minx']>619641.7) & (l['miny']>9259735.0) & # V1 P1
+            (l['minx']<621212.1) & (l['miny']<9261887.8)   # V2 P1
+            ) |
+            ((l['minx']>627583.9) & (l['miny']>9253353.3) & # V1 P2
+            (l['minx']<629255) & (l['miny']<9255705)   # V2 P2
+            ) |
+            ((l['minx']>628000.9) & (l['miny']>9249430.7) & # V1 P3
+            (l['minx']<620328.1) & (l['miny']<9239286.6)   # V2 P3
+            ) |
+            ((l['minx']>625001.3) & (l['miny']>9236962.5) & # V1 P4
+            (l['minx']<625015.2) & (l['miny']<9236364.8)   # V2 P4
+            ) |
+            ((l['minx']>619685.9) & (l['miny']>9238780.6) & # V1 P5
+            (l['minx']<620344.8) & (l['miny']<9239286.6)   # V2 P5
+            )]['id']
+
+    l_test = l[((l['minx']>618276.5) & (l['miny']>9256975.6) & # V1 P1
+                (l['minx']<623241.5) & (l['miny']<9252569.3)   # V2 P1
+                ) |
+                ((l['minx']>626004.8) & (l['miny']>9250947.2) & # V1 P2
+                (l['minx']<627251.6) & (l['miny']<9251964.7)   # V2 P2
+                ) |
+                ((l['minx']>633129.9) & (l['miny']>9251417.0) & # V1 P3
+                (l['minx']<634072.3) & (l['miny']<9251993.9)   # V2 P3
+                ) |
+                ((l['minx']>626975.0) & (l['miny']>9246374.1) & # V1 P4
+                (l['minx']<628832.1) & (l['miny']<9248253.4)   # V2 P4
+                ) |
+                ((l['minx']>617904.0) & (l['miny']>9243808.2) & # V1 P5
+                (l['minx']<619191.1) & (l['miny']<9245320.5)   # V2 P5
+                ) |
+                ((l['minx']>619124.4) & (l['miny']>9239440.9) & # V1 P6
+                (l['minx']<619783.2) & (l['miny']<9240155.3)   # V2 P6
+                ) |
+                ((l['minx']>630294.3) & (l['miny']>9240511.1) & # V1 P7
+                (l['minx']<632724) & (l['miny']<9242035)   # V2 P7
+                ) |
+                ((l['minx']>632418.2) & (l['miny']>9237497.6) & # V1 P8
+                (l['minx']<633908.3) & (l['miny']<9238604.1)   # V2 P8
+                )]['id']
+    l_train = l['id'].drop(l_test.index).drop(l_val.index)
     # Carga tus datos
     train_data = load_image_mask_pairs(f"{path}dataset_x_{size}/",f"{path}dataset_y_{size}/",l_train)
     val_data = load_image_mask_pairs(f"{path}dataset_x_{size}/",f"{path}dataset_y_{size}/",l_val)
@@ -151,7 +196,7 @@ def main():
     # Crea el DatasetDict
     dataset = DatasetDict({
         "train": Dataset.from_list(train_data),
-        "test": Dataset.from_list(train_data),
+        "test": Dataset.from_list(test_data),
         "validation": Dataset.from_list(val_data)
     })
 
@@ -160,28 +205,7 @@ def main():
     train_ds = dataset['train']
 
     if mode == 'train':
-        jsons = tabulate_jsons_from_folder(f'{path}metadata_y_{size}/')
-        l1 = jsons[jsons['num_polygons_in_window']>=min_pol]['id']
-        l0 = jsons[jsons['num_polygons_in_window']==0]['id'].sample(n=int(np.round(len(l1)/5)), random_state=42)
-        l = pd.concat([l1,l0])
-        l_train_test = l.sample(frac=0.9, random_state=42)
-        l_val = l.drop(l_train_test.index)
-        l_train = l_train_test.sample(frac=0.8, random_state=42)
-        l_test = l_train_test.drop(l_train.index)
 
-        train_data = load_image_mask_pairs(f"{path}dataset_x_{size}/",f"{path}dataset_y_{size}/",l_train)
-        val_data = load_image_mask_pairs(f"{path}dataset_x_{size}/",f"{path}dataset_y_{size}/",l_val)
-        test_data = load_image_mask_pairs(f"{path}dataset_x_{size}/",f"{path}dataset_y_{size}/",l_test)
-
-        dataset = DatasetDict({
-            "train": Dataset.from_list(train_data),
-            "test": Dataset.from_list(test_data),
-            "validation": Dataset.from_list(val_data)
-        })
-
-        val_ds = dataset["validation"]
-        test_ds = dataset['test']
-        train_ds = dataset['train']
 
         image_processor = SegformerImageProcessor()
 
@@ -229,16 +253,19 @@ def main():
             ignore_index=100,             # dummy
             compute_precision=True
         )
-
+        print(f'''
+              *******************************************************************
+              {metric_for_best_model}''')
+        #print(compute_metrics())
         # 2) Define TrainingArguments con evaluación y selección por métrica
         training_args = TrainingArguments(
             output_dir=f"out/{nombre_modelo}",
             eval_strategy="steps",   # o "epoch"
-            eval_steps=500,                # ajusta al tamaño de tu dataset
+            eval_steps=eval_steps,                # ajusta al tamaño de tu dataset
             save_strategy="steps",         # guarda checkpoints sincronizados con eval
-            save_steps=500,
+            save_steps=eval_steps,
             load_best_model_at_end=True,   # carga el mejor al final
-            metric_for_best_model=metric_for_best_model,  # puedes usar "mean_iou" si prefieres
+            metric_for_best_model='mean_iou',  # puedes usar "mean_iou" si prefieres
             greater_is_better=greater_is_better,        # True para f1_macro y mean_iou
             logging_steps=100,
             save_total_limit=3,
@@ -246,6 +273,7 @@ def main():
             per_device_eval_batch_size=4,
             num_train_epochs=num_train_epochs,
             seed=42,
+            remove_unused_columns=False
         )
 
         # 3) Early stopping basado en la métrica de evaluación
@@ -253,12 +281,19 @@ def main():
         # Tip: si quieres early stopping más sensible, baja la paciencia (e.g., 10)
 
         # 4) Entrenador
+        compute_metrics = build_compute_metrics(
+            id2label=id2label,
+            image_processor=image_processor,
+            ignore_index=100,
+            compute_precision=True
+        )
+
         trainer = Trainer(
             model=model,
             args=training_args,
             train_dataset=train_ds,
             eval_dataset=test_ds,
-            tokenizer=image_processor,     # correcto para modelos vision en HF
+            processing_class=image_processor,     # correcto para modelos vision en HF
             compute_metrics=compute_metrics,
             callbacks=callbacks,
         )
@@ -267,7 +302,12 @@ def main():
         trainer.train()
         metrics = trainer.evaluate()
         print(metrics)  # contendrá mean_iou, f1_macro, macro_precision, macro_recall y por-clase
-
+        print('''
+              -----------------------------------------------------------------------------------------------------
+              -----------------------------------------------------------------------------------------------------
+              ----------------------------------TERMINO EL TRAIN --------------------------------------------------
+              -----------------------------------------------------------------------------------------------------
+              -----------------------------------------------------------------------------------------------------''')
     elif mode=='val':
         from transformers import AutoModelForSemanticSegmentation, AutoImageProcessor
 
@@ -343,11 +383,11 @@ def main():
         training_args = TrainingArguments(
             output_dir=output_dir,
             eval_strategy="steps",   # o "epoch"
-            eval_steps=500,                # ajusta al tamaño de tu dataset
+            eval_steps=eval_steps,                # ajusta al tamaño de tu dataset
             save_strategy="steps",         # guarda checkpoints sincronizados con eval
-            save_steps=500,
+            save_steps=eval_steps,
             load_best_model_at_end=True,   # carga el mejor al final
-            metric_for_best_model=metric_for_best_model,  # puedes usar "mean_iou" si prefieres
+            metric_for_best_model='mean_iou',  # puedes usar "mean_iou" si prefieres
             greater_is_better=greater_is_better,        # True para f1_macro y mean_iou
             logging_steps=100,
             save_total_limit=3,
@@ -355,6 +395,7 @@ def main():
             per_device_eval_batch_size=4,
             num_train_epochs=5,
             seed=42,
+            remove_unused_columns=False
         )
         # 3) Crear el Trainer para evaluación
         trainer = Trainer(

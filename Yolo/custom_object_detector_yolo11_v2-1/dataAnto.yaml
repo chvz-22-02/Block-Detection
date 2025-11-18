@@ -1,6 +1,6 @@
-train: ../train/images
-val: ../valid/images
-test: ../test/images
+train: C:/Users/JORGE/Documents/ProyectoIntegrador/Block-Detection/Yolo/custom_object_detector_yolo11_v2-1/test/images
+val: C:/Users/JORGE/Documents/ProyectoIntegrador/Block-Detection/Yolo/custom_object_detector_yolo11_v2-1/test/images
+test: C:/Users/JORGE/Documents/ProyectoIntegrador/Block-Detection/Yolo/custom_object_detector_yolo11_v2-1/test/images
 
 nc: 1
 names: ['manzanas']
