@@ -59,6 +59,7 @@ def main():
     print(F'Ruta de trabajo: {path}')
     print('Modo:', mode)
     m_pred = path.split('/')[-2]
+    rng_state = 42
 
     metric = evaluate.load("mean_iou")
 
@@ -139,60 +140,147 @@ def main():
         return compute_metrics
 
 
+    # 1) Cargar metadata
     jsons = tabulate_jsons_from_folder(f'{path}metadata_y_{size}/')
-    l1 = jsons[jsons['num_polygons_in_window']>=min_pol]
-    try:
-        l0 = jsons[jsons['num_polygons_in_window']==0].sample(n=int(np.round(len(l1)/5)), random_state=42)
-    except:
-        l0 = jsons[jsons['num_polygons_in_window']==0]
-    l = pd.concat([l1,l0])
-    df_dict = l['bounds'].apply(pd.Series)
-    l = pd.concat([l.drop(columns=['bounds']), df_dict], axis=1)
-    l_val = l[((l['minx']>619641.7) & (l['miny']>9259735.0) & # V1 P1
-            (l['minx']<621212.1) & (l['miny']<9261887.8)   # V2 P1
-            ) |
-            ((l['minx']>627583.9) & (l['miny']>9253353.3) & # V1 P2
-            (l['minx']<629255) & (l['miny']<9255705)   # V2 P2
-            ) |
-            ((l['minx']>628000.9) & (l['miny']>9249430.7) & # V1 P3
-            (l['minx']<620328.1) & (l['miny']<9239286.6)   # V2 P3
-            ) |
-            ((l['minx']>625001.3) & (l['miny']>9236962.5) & # V1 P4
-            (l['minx']<625015.2) & (l['miny']<9236364.8)   # V2 P4
-            ) |
-            ((l['minx']>619685.9) & (l['miny']>9238780.6) & # V1 P5
-            (l['minx']<620344.8) & (l['miny']<9239286.6)   # V2 P5
-            )]['id']
 
-    l_test = l[((l['minx']>618276.5) & (l['miny']>9256975.6) & # V1 P1
-                (l['minx']<623241.5) & (l['miny']<9252569.3)   # V2 P1
+    # 2) Expandir 'bounds' primero (para poder filtrar por coordenadas)
+    df_bounds = jsons['bounds'].apply(pd.Series)
+    df = pd.concat([jsons.drop(columns=['bounds']), df_bounds], axis=1)
+
+    # 3) Separar positivos (l1) y negativos (l0)
+    l1 = df[df['num_polygons_in_window'] >= min_pol].copy()
+
+    try:
+        l0 = df[df['num_polygons_in_window'] == 0].sample(
+            n=int(np.round(len(l1) / 5)),
+            random_state=rng_state
+        ).copy()
+    except ValueError:
+        # Si hay pocos negativos, usa todos los disponibles
+        l0 = df[df['num_polygons_in_window'] == 0].copy()
+
+    # 4) Split de POSITIVOS por ventanas espaciales:
+    #    l1_eval y l1_test como en tu código; l1_train = resto
+
+    l1_eval = l1[
+        ((l1['minx'] > 619641.7) & (l1['miny'] > 9259735.0) &
+        (l1['minx'] < 621212.1) & (l1['miny'] < 9261887.8))   # V1 P1
+        |
+        ((l1['minx'] > 627583.9) & (l1['miny'] > 9253353.3) &
+        (l1['minx'] < 629255.0) & (l1['miny'] < 9255705.0))   # V2 P2
+        |
+        ((l1['minx'] > 628000.9) & (l1['miny'] > 9249430.7) &
+        (l1['minx'] < 620328.1) & (l1['miny'] < 9239286.6))   # V2 P3
+        |
+        ((l1['minx'] > 625001.3) & (l1['miny'] > 9236303.7) &
+        (l1['minx'] < 625967.7) & (l1['miny'] < 9236900.2))   # V2 P4
+        |
+        ((l1['minx'] > 619685.9) & (l1['miny'] > 9238780.6) &
+        (l1['minx'] < 620344.8) & (l1['miny'] < 9239286.6))   # V2 P5
+        |
+        ((l1['minx']>633121.3) & (l1['miny']>9265091.3) & # V1 P1
+            (l1['minx']<633924.6) & (l1['miny']<9265836.8)   # V2 P1
+            ) |
+            ((l1['minx']>620618.9) & (l1['miny']>9257964.0) & # V1 P2
+            (l1['minx']<621803.2) & (l1['miny']<9259571.9)   # V2 P2 ,
+            ) |
+            ((l1['minx']>627951.2) & (l1['miny']>9250835.3) & # V1 P3 ,
+            (l1['minx']<631073.4) & (l1['miny']<9252780.1)   # V2 P3 ,
+            ) |
+            ((l1['minx']>620235.2) & (l1['miny']>9245289.7) & # V1 P4 ,
+            (l1['minx']<621291.5) & (l1['miny']<9246918.2)   # V2 P4 ,
+            ) |
+            ((l1['minx']>630724.0) & (l1['miny']>9238558.5) & # V1 P5 ,
+            (l1['minx']<631626.3) & (l1['miny']<9239554.3)   # V2 P5 ,
+            ) |
+            ((l1['minx']>624892.3) & (l1['miny']>9233436.5) & # V1 P6 ,
+            (l1['minx']<625874.3) & (l1['miny']<9234476.3)   # V2 P6 ,
+            )
+    ].copy()
+
+    l1_test = l1[
+        ((l1['minx'] > 618248.9) & (l1['miny'] > 9256906.1) &
+        (l1['minx'] < 619635.3) & (l1['miny'] < 9258057.0))   # V1 P1
+        |
+        ((l1['minx'] > 633129.9) & (l1['miny'] > 9251417.0) &
+        (l1['minx'] < 634072.3) & (l1['miny'] < 9251993.9))   # V2 P2
+        |
+        ((l1['minx'] > 626004.8) & (l1['miny'] > 9250947.2) &
+        (l1['minx'] < 627251.6) & (l1['miny'] < 9251964.7))   # V2 P2
+        |
+        ((l1['minx'] > 626975.0) & (l1['miny'] > 9246374.1) &
+        (l1['minx'] < 628832.1) & (l1['miny'] < 9248253.4))   # V2 P4
+        |
+        ((l1['minx'] > 617904.0) & (l1['miny'] > 9243808.2) &
+        (l1['minx'] < 619191.1) & (l1['miny'] < 9245320.5))   # V2 P5
+        |
+        ((l1['minx'] > 619124.4) & (l1['miny'] > 9239440.9) &
+        (l1['minx'] < 619783.2) & (l1['miny'] < 9240155.3))   # V2 P6
+        |
+        ((l1['minx'] > 630294.3) & (l1['miny'] > 9240511.1) &
+        (l1['minx'] < 632724.0) & (l1['miny'] < 9242035.0))   # V2 P7
+        |
+        ((l1['minx'] > 632418.2) & (l1['miny'] > 9237497.6) &
+        (l1['minx'] < 633908.3) & (l1['miny'] < 9238604.1))   # V2 P8
+        |
+        ((l1['minx']>633208.0) & (l1['miny']>9266231.5) & # V1 P1 ,
+                (l1['minx']<635276.6) & (l1['miny']<9267656.4)   # V2 P1 ,
+                ) | 
+                ((l1['minx']>631095.4) & (l1['miny']>9257076.9) & # V1 P2 ,
+                (l1['minx']<632129.7) & (l1['miny']<9257698.6)   # V2 P2 ,
+                ) | #,
+                ((l1['minx']>626077.9) & (l1['miny']>9252301.5) & # V1 P2 ,
+                (l1['minx']<627381.8) & (l1['miny']<9254524.1)   # V2 P2 ,
+                ) | #
+                ((l1['minx']>618551.7) & (l1['miny']>9251190.2) & # V1 P4 ,
+                (l1['minx']<619528.3) & (l1['miny']<9251798.1)   # V2 P4 ,
                 ) |
-                ((l['minx']>626004.8) & (l['miny']>9250947.2) & # V1 P2
-                (l['minx']<627251.6) & (l['miny']<9251964.7)   # V2 P2
+                ((l1['minx']>623357.4) & (l1['miny']>9247649.9) & # V1 P5 ,
+                (l1['minx']<626141) & (l1['miny']<9250934)   # V2 P5 ,
                 ) |
-                ((l['minx']>633129.9) & (l['miny']>9251417.0) & # V1 P3
-                (l['minx']<634072.3) & (l['miny']<9251993.9)   # V2 P3
+                ((l1['minx']>628822.9) & (l1['miny']>9243450.5) & # V1 P6 ,
+                (l1['minx']<629711.7) & (l1['miny']<9244236.2)   # V2 P6 ,
                 ) |
-                ((l['minx']>626975.0) & (l['miny']>9246374.1) & # V1 P4
-                (l['minx']<628832.1) & (l['miny']<9248253.4)   # V2 P4
-                ) |
-                ((l['minx']>617904.0) & (l['miny']>9243808.2) & # V1 P5
-                (l['minx']<619191.1) & (l['miny']<9245320.5)   # V2 P5
-                ) |
-                ((l['minx']>619124.4) & (l['miny']>9239440.9) & # V1 P6
-                (l['minx']<619783.2) & (l['miny']<9240155.3)   # V2 P6
-                ) |
-                ((l['minx']>630294.3) & (l['miny']>9240511.1) & # V1 P7
-                (l['minx']<632724) & (l['miny']<9242035)   # V2 P7
-                ) |
-                ((l['minx']>632418.2) & (l['miny']>9237497.6) & # V1 P8
-                (l['minx']<633908.3) & (l['miny']<9238604.1)   # V2 P8
-                )]['id']
-    l_train = l['id'].drop(l_test.index).drop(l_val.index)
+                ((l1['minx']>624413.0) & (l1['miny']>9238442.3) & # V1 P7 ,
+                (l1['minx']<625616.5) & (l1['miny']<9239219.4)   # V2 P7 ,
+                )
+    ].copy()
+
+    # Resto de positivos para train
+    l1_train = l1.drop(index=l1_eval.index.union(l1_test.index)).copy()
+
+    # 5) Split ALEATORIO de NEGATIVOS (l0) en 70/20/10 -> train/test/eval
+    l0_shuffled = l0.sample(frac=1.0, random_state=rng_state)
+    n0 = len(l0_shuffled)
+    n_train0 = int(np.floor(0.7 * n0))
+    n_eval0  = int(np.floor(0.1 * n0))
+    n_test0  = n0 - n_train0 - n_eval0
+
+    l0_train = l0_shuffled.iloc[:n_train0].copy()
+    l0_eval  = l0_shuffled.iloc[n_train0:n_train0 + n_eval0].copy()
+    l0_test  = l0_shuffled.iloc[n_train0 + n_eval0:].copy()
+
+    # 6) Unir positivos + negativos por split
+    df_train = pd.concat([l1_train, l0_train], ignore_index=True)
+    df_eval  = pd.concat([l1_eval,  l0_eval],  ignore_index=True)
+    df_test  = pd.concat([l1_test,  l0_test],  ignore_index=True)
+
+
+    # 8) Reporte
+    total = len(df_train) + len(df_test) + len(df_eval)
+    print(f"{prepath}{size}/")
+    print("train:", len(df_train), round(len(df_train) / total, 4))
+    print("test: ", len(df_test),  round(len(df_test)  / total, 4))
+    print("eval: ", len(df_eval),  round(len(df_eval)  / total, 4))
+
+    # 9) Si necesitas solo los IDs:
+    ids_train = df_train['id']
+    ids_test  = df_test['id']
+    ids_eval  = df_eval['id']
     # Carga tus datos
-    train_data = load_image_mask_pairs(f"{path}dataset_x_{size}/",f"{path}dataset_y_{size}/",l_train)
-    val_data = load_image_mask_pairs(f"{path}dataset_x_{size}/",f"{path}dataset_y_{size}/",l_val)
-    test_data = load_image_mask_pairs(f"{path}dataset_x_{size}/",f"{path}dataset_y_{size}/",l_test)
+    train_data = load_image_mask_pairs(f"{path}dataset_x_{size}/",f"{path}dataset_y_{size}/",ids_train)
+    val_data = load_image_mask_pairs(f"{path}dataset_x_{size}/",f"{path}dataset_y_{size}/",ids_eval)
+    test_data = load_image_mask_pairs(f"{path}dataset_x_{size}/",f"{path}dataset_y_{size}/",ids_test)
 
     # Crea el DatasetDict
     dataset = DatasetDict({
