@@ -118,7 +118,7 @@ if uploaded_file:
             end_time = time.time()
 
         # Imagen resultante
-        result_img = results[0].plot()
+        result_img = results[0].plot(labels=False, conf=False)
         result_pil = Image.fromarray(result_img)
 
         st.markdown('<div class="image-container">', unsafe_allow_html=True)
@@ -138,4 +138,5 @@ if uploaded_file:
             file_name="imagen_procesada.png",
             mime="image/png"
         )
+
 
