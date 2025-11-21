@@ -1,0 +1,13 @@
+train: C:/Users/JORGE/Documents/ProyectoIntegrador/Block-Detection/data/interim_yolo/Roboflow/data_256/train/images
+val: C:/Users/JORGE/Documents/ProyectoIntegrador/Block-Detection/data/interim_yolo/Roboflow/data_256/valid/images #../../data/interim_yolo/valid/images
+test: C:/Users/JORGE/Documents/ProyectoIntegrador/Block-Detection/data/interim_yolo/Roboflow/data_256/test/images
+
+nc: 1
+names: ['manzanas'] #['manzanas', 'parcelas', 'parques']
+
+roboflow:
+  workspace: nella-hyakz
+  project: custom_object_detector_yolo11_v2-rotnm
+  version: 1
+  license: CC BY 4.0
+  url: https://universe.roboflow.com/nella-hyakz/custom_object_detector_yolo11_v2-rotnm/dataset/1

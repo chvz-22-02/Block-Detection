@@ -57,7 +57,8 @@ def main():
 
     path = f'{prepath}{size}/'
     print(F'Ruta de trabajo: {path}')
-
+    print('Modo:', mode)
+    m_pred = path.split('/')[-2]
 
     metric = evaluate.load("mean_iou")
 
@@ -255,7 +256,7 @@ def main():
         )
         print(f'''
               *******************************************************************
-              {metric_for_best_model}''')
+              {f"out/{nombre_modelo}"}''')
         #print(compute_metrics())
         # 2) Define TrainingArguments con evaluación y selección por métrica
         training_args = TrainingArguments(
@@ -414,6 +415,12 @@ def main():
         os.makedirs(os.path.dirname(ruta_archivo), exist_ok=True)
         with open(ruta_archivo, "w", encoding="utf-8") as f:
             f.write(cadena_json)
+        print('''
+              -----------------------------------------------------------------------------------------------------
+              -----------------------------------------------------------------------------------------------------
+              ----------------------------------TERMINO EL VALID --------------------------------------------------
+              -----------------------------------------------------------------------------------------------------
+              -----------------------------------------------------------------------------------------------------''')
     elif mode == 'pred':
         from pathlib import Path
         from transformers import pipeline
@@ -424,7 +431,7 @@ def main():
         checkpoints_sorted = sorted(checkpoints, key=lambda x: int(x.split("-")[1]))
         output_dir_f = f'{output_dir}/{checkpoints_sorted[-1]}'
         print("Último checkpoint:", checkpoints_sorted[-1])
-        input_dir  = "../data/external"   # carpeta de entrada
+        input_dir  = f"../data/external/SF/{m_pred}"   # carpeta de entrada
         output_dir_preds = f"../data/processed_segformer/{nombre_modelo}-{checkpoints_sorted[-1]}/preds" 
         
         target_label = "Block" 
@@ -443,26 +450,36 @@ def main():
         image_segmentator = pipeline(
             task="image-segmentation",
             model=output_dir_f,
-            device=device
+            device=device,
+            use_fast=True
         )
         input_paths = [p for p in Path(input_dir).glob("*") if p.suffix.lower() in valid_exts]
         print(f"Encontradas {len(input_paths)} imágenes en: {input_dir}")
         for i, img_path in enumerate(sorted(input_paths)):
             img = Image.open(str(img_path)).convert("RGB")
             result = image_segmentator(img)
-            r = result[1]
-            mask = np.array(r["mask"]) > 0 
-            color = (255, 0, 0)
-            segmentation_map = np.zeros((*mask.shape, 3), dtype=np.uint8)
-            for c in range(3):
-                segmentation_map[:, :, c] = np.where(mask, color[c], segmentation_map[:, :, c])
-            segments = image_segmentator(img)
-            n = str(img_path).split('\\')[-1]
-            w_path = f'{output_dir_preds}/{n}'
-            plt.imshow(img)
-            plt.imshow(segmentation_map, alpha=0.5)
-            plt.savefig(w_path, bbox_inches='tight', pad_inches=0)
-            plt.close()
-
+            try:
+                r = result[1]
+                mask = np.array(r["mask"]) > 0 
+                color = (255, 0, 0)
+                segmentation_map = np.zeros((*mask.shape, 3), dtype=np.uint8)
+                for c in range(3):
+                    segmentation_map[:, :, c] = np.where(mask, color[c], segmentation_map[:, :, c])
+                segments = image_segmentator(img)
+                n = str(img_path).split('\\')[-1]
+                w_path = f'{output_dir_preds}/{n}'
+                plt.imshow(img)
+                plt.imshow(segmentation_map, alpha=0.5)
+                plt.savefig(w_path, bbox_inches='tight', pad_inches=0)
+                plt.close()
+                print('Predicción guardada en:',w_path)
+            except:
+                print('Sin predicciones')
+        print('''
+              -----------------------------------------------------------------------------------------------------
+              -----------------------------------------------------------------------------------------------------
+              ----------------------------------TERMINO EL PRED  --------------------------------------------------
+              -----------------------------------------------------------------------------------------------------
+              -----------------------------------------------------------------------------------------------------''')
 if __name__ == "__main__":
     main()

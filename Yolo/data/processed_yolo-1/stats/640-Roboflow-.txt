@@ -1,0 +1,13 @@
+Imágenes evaluadas: 53
+Detecciones totales: 13030, GT totales: 81
+
+== Métricas por clase (solo objeto(s)) ==
+[0 - manzanas] TP=47, FP=34, FN=712 | Prec=0.5802, Rec=0.0619, IoU_TP_mean=0.7379 (TPs_IoU=72)
+
+== Indicadores relacionados a fondo (no estándar) ==
+FP_obj (predijo objeto sin GT) = 34
+FN_obj (no detectó objeto GT)  = 712
+
+== Promedios ==
+Precision_obj(micro)=0.0593, Recall_obj(micro)=0.0593
+IoU_micro(solo TP con conf≥0.001, ponderado por TP)=0.7379, IoU_macro(solo TP con conf≥0.001, clases con TP>0)=0.7379

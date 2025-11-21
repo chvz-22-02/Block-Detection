@@ -3,12 +3,19 @@
 @echo on
 call ..\pi-env\Scripts\activate
 
-cd Yolo
+cd Yolo\Roboflow
 
 :: ENTRENAR
-::python YOLO_11.py --mode "train" --prepath "../data/raw/data_set_all_" --size 256 --epochs 200 --nombre-yaml "dataAnto.yaml" --min-pol 1 --gen-data "no"
+@REM call python YOLO_Roboflow.py --mode "train" --size 256 --epochs 2000 
+@REM call python YOLO_Roboflow.py --mode "val" --size 256 --version ""
+@REM call python YOLO_Roboflow.py --mode "pred" --size 256 --version ""
 
-:: VALIDAR (AUTOMÁTICO - selecciona el último modelo)
-python YOLO_11.py --mode "val" --prepath "../data/raw/data_set_all_" --size 256 --nombre-yaml "dataAnto.yaml" --version 2
+@REM call python YOLO_Roboflow.py --mode "train" --size 512 --epochs 2000
+@REM call python YOLO_Roboflow.py --mode "val" --size 512 --version 2
+@REM call python YOLO_Roboflow.py --mode "pred" --size 512 --version 2
+
+@REM call python YOLO_Roboflow.py --mode "train" --size 640 --epochs 2000
+@REM call python YOLO_Roboflow.py --mode "val" --size 640 --version 5
+call python YOLO_Roboflow.py --mode "pred" --size 512 --version 3
 
 pause

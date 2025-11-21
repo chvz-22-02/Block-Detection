@@ -9,3 +9,11 @@ data/processed_yolo/*
 venv/
 
 data.rar
+
+# Ignorar fotos
+
+*.jpg
+*.jpeg
+*.png
+*.rar
+*.zip

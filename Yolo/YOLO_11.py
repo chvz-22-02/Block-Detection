@@ -33,6 +33,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--iou", type=float, default=0.5, help="Umbral IoU para emparejamiento.")
     parser.add_argument("--version", type=str, default="12", help="Versión (string suelto).")
     parser.add_argument("--gen-data", type=str, default="si", help="Si es que se tiene que generar el dataset o buscarlo directamente al yaml (bool).")
+    parser.add_argument("--type-yolo", type=str, default="yolo11s.pt", help="Versión de Yolo que se está usando, yolo11s.pt o yolo11s-obb.pt")
 
     return parser.parse_args()
 
@@ -47,26 +48,32 @@ def main():
     gen_data = args.gen_data
     nombre_yaml = args.nombre_yaml
 
-    model_path = f"runs/detect/train{n_modelo}/weights/best.pt"
+    
     data_yaml  = f'{nombre_yaml}'
     conf_thres = args.conf_thres
     max_det    = args.max_det
     classes    = args.classes
     iou        = args.iou
+    type_yolo  = args.type_yolo
 
     version = args.version
     mode = args.mode
+    
     #################################################################################
     #################################################################################
 
-    # carga de librerías
+    if type_yolo == 'yolo11s.pt':
+        mode_yolo = 'detect'
+    elif type_yolo == 'yolo11s-obb.pt':
+        mode_yolo = 'obb'
 
-
+    model_path = f"runs/{mode_yolo}/train{n_modelo}/weights/best.pt"
 
     # Ruta a la carpeta del dataset
     path = f'{prepath}{size}/'
+    m_pred = path.split('/')[-2]
     print(F'Ruta de trabajo: {path}')
-
+    print(mode)
     if mode=='train':
         # Definición del dataset y separación en train, test y val
         if gen_data=='si':
@@ -134,7 +141,7 @@ def main():
             copiar_archivos_seleccionados('../data/interim_yolo/dataset_labels/', '../data/interim_yolo/test/labels/', [str(x)+'.txt' for x in l_val])
 
         # Carga del modelo base
-        model = YOLO("yolo11s.pt")
+        model = YOLO(type_yolo)
 
         # Fine tunning
         data_path = f"custom_object_detector_yolo11_v2-1/{nombre_yaml}"
@@ -261,18 +268,19 @@ def main():
                                     device=model.device, verbose=False, save=False)
 
         names_map = model.names
-        nc = len(names_map)
-        labels_with_bg = [names_map[i] for i in range(nc)] + ["(bg)"]
+        if isinstance(names_map, dict):
+            names = [names_map[i] for i in sorted(names_map.keys())]
+        else:
+            names = list(names_map)
+        nc = len(names)
 
-        cm = ConfusionMatrix(names=names_map)
+        cm = ConfusionMatrix(names=names)  # mantenemos ConfusionMatrix para TP/FP/FN
 
         img_count = 0
         pred_box_count = 0
         gt_box_count = 0
 
-        sum_iou_tp = 0.0
-        count_tp   = 0
-
+        # Acumuladores SOLO para IoU de verdaderos positivos por clase (con conf >= conf_thres)
         sum_iou_tp_per_cls = np.zeros((nc,), dtype=np.float64)
         count_tp_per_cls   = np.zeros((nc,), dtype=np.int64)
 
@@ -280,24 +288,140 @@ def main():
             img_count += 1
             img_path = getattr(res, "path", None)
             oh, ow = getattr(res, "orig_shape", (None, None))
+            # Detecciones del modelo
             det_xyxy, det_conf, det_cls = extract_pred_xyxy_conf_cls(res)
             pred_box_count += det_xyxy.shape[0]
-            label_path = img_path.replace("images", "labels").replace(".png", ".txt").replace(".jpg", ".txt").replace(".jpge", ".txt")
+
+            # Ground truth
+            label_path = (
+                img_path.replace("images", "labels")
+                        .replace(".png", ".txt")
+                        .replace(".jpg", ".txt")
+                        .replace(".jpge", ".txt")
+            )
             gt_xyxy, gt_cls = load_gt_xyxy_and_cls(label_path, img_w=ow, img_h=oh)
             gt_box_count += gt_xyxy.shape[0]
-            update_cm(cm,
-                    det_xyxy=det_xyxy, det_conf=det_conf, det_cls=det_cls,
-                    gt_xyxy=gt_xyxy,   gt_cls=gt_cls,
-                    iou=iou, conf=conf_thres)
 
-        TP = cm.matrix[0,0]
-        FN = cm.matrix[0,1]
-        FP = cm.matrix[1,0]
-        texto = f'Recall: {TP / (TP + FN)}, Precision: {TP / (TP + FP)}, IoU: {mean_iou_global}'
-        ruta_archivo = f'../data/processed_yolo/stats/{n_modelo}.txt'
+            # === Matriz de confusión (Ultralytics) ===
+            # OJO: aquí ya pasamos conf=conf_thres e iou=iou, así que P/R se calculan con ese filtro
+            update_cm(
+                cm,
+                det_xyxy=det_xyxy, det_conf=det_conf, det_cls=det_cls,
+                gt_xyxy=gt_xyxy,   gt_cls=gt_cls,
+                iou=iou, conf=conf_thres
+            )
+
+            # === IoU por clase (solo TP), usando el MISMO filtro de confianza ===
+            # ### NUEVO: aplicamos filtro de confianza ANTES del matching
+            if det_xyxy.size:
+                keep = det_conf >= conf_thres     # <<— mismo umbral que usa cm.process_batch
+                det_xyxy_f = det_xyxy[keep]
+                det_cls_f  = det_cls[keep]
+            else:
+                det_xyxy_f = det_xyxy
+                det_cls_f  = det_cls
+
+            if det_xyxy_f.size and gt_xyxy.size:
+                matches = match_dets_to_gt_greedy(det_xyxy_f, det_cls_f, gt_xyxy, gt_cls, iou_thres=iou)
+            else:
+                matches = []
+
+            for di, gi, iou_val in matches:
+                c = int(det_cls_f[di])
+                if 0 <= c < nc:
+                    sum_iou_tp_per_cls[c] += float(iou_val)
+                    count_tp_per_cls[c]   += 1
+
+        # ---------- Métricas desde la matriz de confusión ----------
+        M = cm.matrix  # Ultralytics: nc x nc (no incluye "fondo" explícito)
+        eps = 1e-12
+
+        per_class_metrics = []
+        for i in range(nc):
+            TP_i = M[i, i]
+            FP_i = M[:, i].sum() - TP_i   # todo lo que se predijo como i y no era i
+            FN_i = M[i, :].sum() - TP_i   # todo lo que era i y no se predijo i
+
+            prec_i = TP_i / (TP_i + FP_i + eps)
+            rec_i  = TP_i / (TP_i + FN_i + eps)
+
+            # IoU por clase (promedio de IoUs de TPs con conf>=conf_thres)
+            iou_i = float(sum_iou_tp_per_cls[i] / max(count_tp_per_cls[i], 1)) if count_tp_per_cls[i] > 0 else 0.0
+
+            per_class_metrics.append({
+                "class_idx": i,
+                "class_name": names[i] if i < len(names) else str(i),
+                "TP": float(TP_i), "FP": float(FP_i), "FN": float(FN_i),
+                "precision": float(prec_i), "recall": float(rec_i),
+                "iou_TP_mean": iou_i,
+                "TP_count_for_IoU": int(count_tp_per_cls[i]),
+            })
+
+        # ---------- Promedios de IoU ----------
+        # MICRO: ponderado por #TP (con conf>=conf_thres)
+        total_TP_for_IoU = int(np.sum(count_tp_per_cls))
+        mean_iou_micro = float(np.sum(sum_iou_tp_per_cls) / total_TP_for_IoU) if total_TP_for_IoU > 0 else 0.0
+
+        # MACRO: promedio simple sobre clases con al menos 1 TP (con conf>=conf_thres)
+        valid_iou_vals = [m["iou_TP_mean"] for m in per_class_metrics if m["TP_count_for_IoU"] > 0]
+        mean_iou_macro = float(np.mean(valid_iou_vals)) if len(valid_iou_vals) > 0 else 0.0
+
+        # ---------- Promedios de Prec/Rec (micro sobre clases de objeto) ----------
+        TP_sum = float(np.trace(M))
+        FP_sum = float(M.sum(axis=0).sum() - np.trace(M))  # suma de FP sobre columnas
+        FN_sum = float(M.sum(axis=1).sum() - np.trace(M))  # suma de FN sobre filas
+
+        precision_micro = TP_sum / (TP_sum + FP_sum + eps)
+        recall_micro    = TP_sum / (TP_sum + FN_sum + eps)
+
+        # ---------- Indicadores tipo “fondo” (opcional, no estándar en detección) ----------
+        # En detección a nivel instancia no hay TN bien definido. Si igual querés cuantificar
+        # lo relacionado al fondo, podés reportar:
+        #   FP_obj = predijo objeto donde no había GT (columna de la clase, excepto diagonal)
+        #   FN_obj = había GT objeto y no lo detectó (fila de la clase, excepto diagonal)
+        # Para 1 clase:
+        if nc == 1:
+            FP_obj = float(M[:, 0].sum() - M[0, 0])
+            FN_obj = float(M[0, :].sum() - M[0, 0])
+            fondo_lines = [
+                "== Indicadores relacionados a fondo (no estándar) ==",
+                f"FP_obj (predijo objeto sin GT) = {int(FP_obj)}",
+                f"FN_obj (no detectó objeto GT)  = {int(FN_obj)}",
+            ]
+        else:
+            fondo_lines = []
+
+        # ---------- Salida ----------
+        texto_lineas = []
+        texto_lineas.append(f"Imágenes evaluadas: {img_count}")
+        texto_lineas.append(f"Detecciones totales: {pred_box_count}, GT totales: {gt_box_count}")
+        texto_lineas.append("")
+        texto_lineas.append("== Métricas por clase (solo objeto(s)) ==")
+        for m in per_class_metrics:
+            texto_lineas.append(
+                f"[{m['class_idx']} - {m['class_name']}] "
+                f"TP={m['TP']:.0f}, FP={m['FP']:.0f}, FN={m['FN']:.0f} | "
+                f"Prec={m['precision']:.4f}, Rec={m['recall']:.4f}, "
+                f"IoU_TP_mean={m['iou_TP_mean']:.4f} (TPs_IoU={m['TP_count_for_IoU']})"
+            )
+        if fondo_lines:
+            texto_lineas.append("")
+            texto_lineas += fondo_lines
+
+        texto_lineas.append("")
+        texto_lineas.append("== Promedios ==")
+        texto_lineas.append(f"Precision_obj(micro)={precision_micro:.4f}, Recall_obj(micro)={recall_micro:.4f}")
+        texto_lineas.append(
+            f"IoU_micro(solo TP con conf≥{conf_thres}, ponderado por TP)={mean_iou_micro:.4f}, "
+            f"IoU_macro(solo TP con conf≥{conf_thres}, clases con TP>0)={mean_iou_macro:.4f}"
+        )
+
+        ruta_archivo = f'../data/processed_yolo/stats/{mode_yolo}/{path.split("/")[-2]}-{n_modelo}.txt'
         os.makedirs(os.path.dirname(ruta_archivo), exist_ok=True)
         with open(ruta_archivo, "w", encoding="utf-8") as f:
-            f.write(texto)
+            f.write("\n".join(texto_lineas))
+
+        print("\n".join(texto_lineas))
         print('''
               -----------------------------------------------------------------------------------------------------
               -----------------------------------------------------------------------------------------------------
@@ -307,12 +431,13 @@ def main():
         
     elif mode=='pred':
         # Carga del modelo entrenado
-        custom_model = YOLO(f"runs/detect/train{version}/weights/best.pt")
+        custom_model = YOLO(f"runs/{mode_yolo}/train{version}/weights/best.pt")
         results = custom_model.predict(
-            source="../data/external",
+            source=f"../data/external/SF/{m_pred}",
             save=True,
             project="../data/processed_yolo",
             name=f"pred-m-{version}",
+            show_labels=False,
             exist_ok=True
         )
         print('''
