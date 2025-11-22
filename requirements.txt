@@ -1,6 +1,17 @@
+# Framework
 streamlit==1.51.0
+
+# Visión / YOLO
 ultralytics==8.3.227
-pillow==12.0.0
-numpy==1.26.4
-ImageIO==2.37.2
+
+# Evita dependencias GUI de OpenCV
 opencv-python-headless==4.8.1.78
+
+# Librerías comunes
+numpy>=1.26,<2.1          # si bajas a Python 3.11, esta línea está bien
+Pillow>=10,<11
+imageio>=2.34              # nombre correcto en minúsculas
+
+# Si usas Torch CPU (sin GPU/CUDA en Streamlit Cloud)
+# Deja que ultralytics resuelva torch CPU. Si quieres fijarla:
+# torch==2.2.2+cpu; sys_platform != "win32"
